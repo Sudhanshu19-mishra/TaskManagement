@@ -97,4 +97,3 @@ class OtherDoc(models.Model):
         return self.client
     
 
-#  Done   
