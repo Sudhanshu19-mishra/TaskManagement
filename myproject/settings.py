@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-i!62ih)3&4-r!b#95+^59xq97)xzym*b%!!1_bm2jy4_frix1+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['sudhanshutask.pythonanywhere.com']
 
 
 # Application definition
@@ -43,6 +43,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
+
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -86,13 +90,14 @@ WSGI_APPLICATION = 'myproject.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'task',
-        'USER': 'root',
-        'PASSWORD': '',
-        'HOST':'localhost',
-        'PORT':'3306',
+        'NAME': 'sudhanshutask$default',
+        'USER': 'sudhanshutask',
+        'PASSWORD': 'task123@',
+        'HOST': 'sudhanshutask.mysql.pythonanywhere-services.com',
+        'PORT': '3306',
     }
 }
+
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -127,19 +132,18 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-STATICFILES_DIRS = [BASE_DIR / "static"]
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  
+    "http://localhost:3001",
+    "http://localhost:3000",
+    "https://your-frontend-domain.com",
+    "https://ca-dashboard-sepia.vercel.app",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:5500",
+    "https://sudhanshutask.pythonanywhere.com",
+
 ]
