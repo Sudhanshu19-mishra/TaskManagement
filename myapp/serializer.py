@@ -140,25 +140,42 @@ class KycSerializer(serializers.ModelSerializer):
         instance.client = validated_data.get("client", instance.client)
 
         if partners_data is not None:
-            # PATCH or update partners
+            # Loop through each partner info in the update payload
             for partner_info in partners_data:
                 index = partner_info.get("index")
-                action = partner_info.get("action", "update")  # default is update
+                action = partner_info.get("action", "update")  # default action is update
+
                 if index is None or index >= len(instance.partners):
-                    continue
+                    continue  # skip invalid indices
 
                 if action == "delete":
+                    # Remove partner at index
                     instance.partners.pop(index)
-                else:  # update
+                else:  # update partner
                     partner = instance.partners[index]
-                    if "name" in partner_info:
-                        partner["name"] = partner_info["name"]
+
+                    # Update name/email/phone if provided
+                    for field in ["name", "email", "phone"]:
+                        if field in partner_info:
+                            partner[field] = partner_info[field]
+
+                    # Update file if uploaded
                     if request and request.FILES:
-                        file_key = f"partners_{index}_document"
+                        file_key = f"partners_{index}_document"  # same pattern as create
                         uploaded_file = request.FILES.get(file_key)
                         if uploaded_file:
+                            # Optional: delete old file if exists
+                            old_file = partner.get("document")
+                            if old_file:
+                                old_file_path = old_file.lstrip("/")
+                                if default_storage.exists(old_file_path):
+                                    default_storage.delete(old_file_path)
+
+                            # Save new file
                             file_path = default_storage.save(f"partners/{uploaded_file.name}", uploaded_file)
                             partner["document"] = default_storage.url(file_path)
+
+                    # Assign updated partner back
                     instance.partners[index] = partner
 
         instance.save()

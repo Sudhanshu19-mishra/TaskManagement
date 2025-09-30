@@ -466,10 +466,9 @@ class KycAPIView(APIView):
 
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
-
 @method_decorator(csrf_exempt, name='dispatch')
 class UpdatePartnerAPIView(APIView):
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def patch(self, request, pk, index):
         print(f"DEBUG: PATCH request received for KYC {pk}, partner index {index}")
@@ -488,29 +487,24 @@ class UpdatePartnerAPIView(APIView):
             if index < 0 or index >= len(partners):
                 print(f"DEBUG: Index {index} out of range (0-{len(partners)-1})")
                 return Response({"status": "error", "message": "Partner index out of range"},
-                              status=status.HTTP_400_BAD_REQUEST)
+                                status=status.HTTP_400_BAD_REQUEST)
 
             partner = partners[index] or {}
             print(f"DEBUG: Current partner data: {partner}")
 
-            # Update fields
             updated_fields = []
-            if 'name' in request.data:
-                partner['name'] = request.data['name']
-                updated_fields.append('name')
-                print(f"DEBUG: Updated name to: {request.data['name']}")
 
-            if 'email' in request.data:
-                partner['email'] = request.data['email']
-                updated_fields.append('email')
+            # Update basic fields
+            for field in ['name', 'email', 'phone']:
+                if field in request.data:
+                    partner[field] = request.data[field]
+                    updated_fields.append(field)
+                    print(f"DEBUG: Updated {field} to: {request.data[field]}")
 
-            if 'phone' in request.data:
-                partner['phone'] = request.data['phone']
-                updated_fields.append('phone')
-
-            # Handle file upload
-            if 'document' in request.FILES:
-                file = request.FILES['document']
+            # Handle file upload with same key pattern as create
+            file_key = f"partners_{index}_document"
+            if file_key in request.FILES:
+                file = request.FILES[file_key]
                 print(f"DEBUG: File received: {file.name}, size: {file.size}")
 
                 # Delete old file if exists
@@ -522,15 +516,10 @@ class UpdatePartnerAPIView(APIView):
                     except Exception as e:
                         print(f"DEBUG: Error deleting old file: {e}")
 
-                # Generate unique filename
+                # Save new file
                 file_extension = os.path.splitext(file.name)[1]
                 unique_filename = f"{uuid.uuid4()}{file_extension}"
-
-                # Save file
-                path = default_storage.save(
-                    os.path.join('partners', unique_filename),
-                    ContentFile(file.read())
-                )
+                path = default_storage.save(os.path.join('partners', unique_filename), ContentFile(file.read()))
                 partner['document'] = '/' + path.replace('\\', '/')
                 updated_fields.append('document')
                 print(f"DEBUG: File saved to: {partner['document']}")
@@ -538,14 +527,15 @@ class UpdatePartnerAPIView(APIView):
             if not updated_fields:
                 print("DEBUG: No fields to update")
                 return Response({"status": "error", "message": "No fields to update"},
-                              status=status.HTTP_400_BAD_REQUEST)
+                                status=status.HTTP_400_BAD_REQUEST)
 
+            # Save updated partner
             partners[index] = partner
             kyc.partners = partners
             kyc.save()
             print(f"DEBUG: KYC saved successfully")
 
-            serializer = KycSerializer(kyc)
+            serializer = KycSerializer(kyc, context={'request': request})
             return Response({
                 "status": "success",
                 "message": f"Updated fields: {', '.join(updated_fields)}",
@@ -557,7 +547,8 @@ class UpdatePartnerAPIView(APIView):
             import traceback
             print(f"DEBUG: Traceback: {traceback.format_exc()}")
             return Response({"status": "error", "message": f"An error occurred: {str(e)}"},
-                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     def delete(self, request, pk, index):
         try:
             kyc = get_object_or_404(Kyc, pk=pk)
