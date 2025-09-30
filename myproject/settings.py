@@ -88,12 +88,11 @@ DATABASES = {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'task',
         'USER': 'root',
-        'PASSWORD': 'root',
-        'HOST': 'localhost',
-        'PORT': '3307',
+        'PASSWORD': '',
+        'HOST':'localhost',
+        'PORT':'3306',
     }
 }
-
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 
@@ -142,5 +141,5 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  
-    
+    "http://127.0.0.1:3000",
 ]

@@ -1,7 +1,7 @@
 from django.db import models
 from django.db import models
 from django.utils import timezone 
-
+from django.db.models import JSONField 
 # Create your models here.
 class Admin(models.Model):
 
@@ -51,26 +51,36 @@ class Task(models.Model):
 class IncomeTax(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
     # staff = models.ForeignKey(Staff, on_delete=models.CASCADE)
-    year = models.IntegerField()
-    document = models.FileField(upload_to='documents/', blank=True, null=True)
+    ass_year = models.IntegerField()
+    final_year=models.IntegerField(blank=True,null=True)
+    itr=models.FileField(upload_to='itr/', blank=True, null=True)
+    computation=models.FileField(upload_to='computation/', blank=True, null=True)
+    trading=models.FileField(upload_to='trading/', blank=True, null=True)
+    balance=models.FileField(upload_to='balance/', blank=True, null=True)
+    audit=models.FileField(upload_to='audit/', blank=True, null=True)
+
     def __str__(self):
         return str(self.client)  
 
 class Gst(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
     year = models.IntegerField()
-    document = models.FileField(upload_to='documents/', blank=True, null=True)
+    sales= models.FileField(upload_to='sales/', blank=True, null=True)
+    purchase=models.FileField(upload_to='purchase/', blank=True, null=True)
+    bank=models.FileField(upload_to='bank/', blank=True, null=True)
+    other= models.FileField(upload_to='other/', blank=True, null=True)
     def __str__(self):
         return self.client
 
 
-class Kyc(models.Model):
+class Kyc(models.Model): 
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
-    year = models.IntegerField()
-    document = models.FileField(upload_to='documents/', blank=True, null=True)
+    partners = JSONField(default=list, blank=True ,null=True)
+
     def __str__(self):
-        return self.client
+        return (self.client)
     
+
 class Tds(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
     year = models.IntegerField()
@@ -79,11 +89,10 @@ class Tds(models.Model):
         return self.client
 
 
-
 class OtherDoc(models.Model):
     client = models.ForeignKey(Client, on_delete=models.CASCADE)
-    year = models.IntegerField()
-    document = models.FileField(upload_to='documents/', blank=True, null=True)
+    partners = JSONField(default=list, blank=True ,null=True)
+
     def __str__(self):
         return self.client
     

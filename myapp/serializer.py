@@ -1,10 +1,10 @@
 from rest_framework import serializers
 from .models import *
-
+from django.core.files.storage import default_storage
 
 class Adminserializer(serializers.ModelSerializer):
     class Meta:
-        model = Admin  
+        model = Admin
         fields = '__all__'
 
 
@@ -21,86 +21,149 @@ class StaffNestedSerializer(serializers.ModelSerializer):
         model = Staff
         fields = ['id', 'name', 'email', 'mobile_No']
 
-    # id = serializers.IntegerField(read_only=True)  
-    # name = serializers.CharField(max_length=200)
-    # email = serializers.EmailField(max_length=100)
-    # password = serializers.CharField(max_length=150)
-    # mobile_No = serializers.IntegerField()
-
-    # def create(self, validated_data):
-    #     # Create and return a new Staff instance
-    #     return Staff.objects.create(**validated_data)
-
-    # def update(self, instance, validated_data):
-    #     # Update and return an existing Staff instance
-        
-    #     instance.name = validated_data.get('name', instance.name)
-    #     instance.email = validated_data.get('email', instance.email)
-    #     instance.password = validated_data.get('password', instance.password)
-    #     instance.mobile_No = validated_data.get('mobile_No', instance.mobile_No)
-    #     instance.save()
-    #     return instance
 
 
+class ClientSerializer_add(serializers.ModelSerializer):
 
-class ClientSerializer(serializers.ModelSerializer):
-    
     class Meta:
         model = Client
         fields = '__all__'
 
-class ClientNestedSerializer(serializers.ModelSerializer):
+# class ClientSerializer(serializers.ModelSerializer):
+
+#     class Meta:
+#         model = Client
+#         exclude = ['password']
+
+
+from django.core.files.storage import default_storage
+class ClientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Client
-        fields = ['id', 'email', 'name','mobile_No']        
-
-
-class IncomeTaxSerializer(serializers.ModelSerializer):
-    # Nested serializers for read (output)
-    # staff = Staffserializer(read_only=True)
-    client = ClientSerializer(read_only=True)
-    
-    # Write-only fields for input (accept just the IDs)
-    # staff_id = serializers.PrimaryKeyRelatedField(queryset=Staff.objects.all(), source='staff', write_only=True)
-    client_id = serializers.PrimaryKeyRelatedField(queryset=Client.objects.all(), source='client', write_only=True)
-    
-    class Meta:
-        model = IncomeTax
-        fields = ['id', 'year', 'document', 'client', 'client_id']
+        fields = ['id', 'name']
 
 
 class TaskSerializer(serializers.ModelSerializer):
-    client = ClientNestedSerializer(read_only=True)  # Show client (without password)
-    
-    # Removed: staff = StaffNestedSerializer(read_only=True)
+
+    client = ClientSerializer(read_only=True)
+    staff = Staffserializer(read_only=True)
 
     client_id = serializers.PrimaryKeyRelatedField(queryset=Client.objects.all(), source='client', write_only=True)
-    
+    staff_id = serializers.PrimaryKeyRelatedField(queryset=Staff.objects.all(), source='staff', write_only=True)
 
     class Meta:
         model = Task
         fields = [
-            'id', 'title', 'description', 'start_date', 'end_date',
-            'status', 'client', 'client_id'
+            'id', 'title', 'description', 'start_date', 'end_date', 'status',
+            'client', 'staff', 'client_id', 'staff_id'
         ]
         read_only_fields = ['start_date']
-        
 
-class GstSerializer(serializers.ModelSerializer):
-    client = ClientNestedSerializer(read_only=True)  # ✔ no password
-    client_id = serializers.PrimaryKeyRelatedField(queryset=Client.objects.all(), source='client', write_only=True)
 
-    class Meta:
-        model = Gst
-        fields = ['id', 'year', 'document', 'client', 'client_id']
-
-class KycSerializer(serializers.ModelSerializer):
+class IncomeTaxSerializer(serializers.ModelSerializer):
     client = ClientSerializer(read_only=True)
     client_id = serializers.PrimaryKeyRelatedField(queryset=Client.objects.all(), source='client', write_only=True)
 
     class Meta:
+        model = IncomeTax
+        fields = [   'id',
+            'ass_year',
+            'final_year',
+            'itr',
+            'computation',
+            'trading',
+            'balance',
+            'audit',
+            'client',
+            'client_id',
+            ]
+
+
+
+class GstSerializer(serializers.ModelSerializer):
+    client = ClientSerializer(read_only=True)  # ✔ no password
+    client_id = serializers.PrimaryKeyRelatedField(queryset=Client.objects.all(), source='client', write_only=True)
+
+    class Meta:
+        model = Gst
+        fields = ['id', 'year', 'other', 'client', 'client_id','sales','purchase','bank','other',]
+
+
+
+
+
+class KycSerializer(serializers.ModelSerializer):
+    client = ClientSerializer(read_only=True)  # shows id and name
+    partners = serializers.JSONField(required=False, default=list, allow_null=True)
+
+    class Meta:
         model = Kyc
-        fields = ['id', 'year', 'document', 'client', 'client_id']
+        fields = ['id', 'client', 'partners']
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        client_id = self.initial_data.get("client")  # client id from request
+        client = Client.objects.get(pk=client_id)
+        partners_list = validated_data.pop("partners", [])
+
+        kyc_instance, created = Kyc.objects.get_or_create(client=client, defaults={'partners': []})
+        updated_partners = list(kyc_instance.partners or [])
+
+        if request and request.FILES:
+            for i, partner_obj in enumerate(partners_list):
+                file_key = f"partners_{i}_document"
+                uploaded_file = request.FILES.get(file_key)
+                file_url = None
+                if uploaded_file:
+                    file_path = default_storage.save(f"partners/{uploaded_file.name}", uploaded_file)
+                    file_url = default_storage.url(file_path)
+
+                if isinstance(partner_obj, dict):
+                    partner_obj["document"] = file_url
+                    updated_partners.append(partner_obj)
+                else:
+                    updated_partners.append({"name": str(partner_obj), "document": file_url})
+        else:
+            for partner_obj in partners_list:
+                if isinstance(partner_obj, dict):
+                    updated_partners.append(partner_obj)
+                else:
+                    updated_partners.append({"name": str(partner_obj), "document": None})
+
+        kyc_instance.partners = updated_partners
+        kyc_instance.save()
+        return kyc_instance
+
+    def update(self, instance, validated_data):
+        request = self.context.get("request")
+        partners_data = validated_data.pop("partners", None)
+        instance.client = validated_data.get("client", instance.client)
+
+        if partners_data is not None:
+            # PATCH or update partners
+            for partner_info in partners_data:
+                index = partner_info.get("index")
+                action = partner_info.get("action", "update")  # default is update
+                if index is None or index >= len(instance.partners):
+                    continue
+
+                if action == "delete":
+                    instance.partners.pop(index)
+                else:  # update
+                    partner = instance.partners[index]
+                    if "name" in partner_info:
+                        partner["name"] = partner_info["name"]
+                    if request and request.FILES:
+                        file_key = f"partners_{index}_document"
+                        uploaded_file = request.FILES.get(file_key)
+                        if uploaded_file:
+                            file_path = default_storage.save(f"partners/{uploaded_file.name}", uploaded_file)
+                            partner["document"] = default_storage.url(file_path)
+                    instance.partners[index] = partner
+
+        instance.save()
+        return instance
+
 
 
 class TdsSerializer(serializers.ModelSerializer):
@@ -111,10 +174,86 @@ class TdsSerializer(serializers.ModelSerializer):
         model = Tds
         fields = ['id', 'year', 'document', 'client', 'client_id']
 
+
 class OtherDocsSerializer(serializers.ModelSerializer):
-    client = ClientSerializer(read_only=True)
-    client_id = serializers.PrimaryKeyRelatedField(queryset=Client.objects.all(), source='client', write_only=True)
+    partners = serializers.JSONField(required=False, default=list, allow_null=True)
 
     class Meta:
         model = OtherDoc
-        fields = ['id', 'year', 'document', 'client', 'client_id']
+        fields = ['id', 'client', 'partners']
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        client = validated_data.get("client")
+        partners_list = validated_data.pop("partners", [])
+
+        # Check for existing record for the same client
+        other_doc_instance = OtherDoc.objects.filter(client=client).first()
+
+        if not other_doc_instance:
+            # Create if not exists
+            other_doc_instance = OtherDoc.objects.create(client=client, partners=[])
+
+        updated_partners = list(other_doc_instance.partners or [])
+
+        if request and request.FILES:
+            for i, partner_obj in enumerate(partners_list):
+                file_key = f"partners_{i}_document"
+                uploaded_file = request.FILES.get(file_key)
+
+                file_url = None
+                if uploaded_file:
+                    file_path = default_storage.save(f"partners/{uploaded_file.name}", uploaded_file)
+                    file_url = default_storage.url(file_path)
+
+                if isinstance(partner_obj, dict):
+                    partner_obj["document"] = file_url
+                    updated_partners.append(partner_obj)
+                else:
+                    updated_partners.append({"name": str(partner_obj), "document": file_url})
+        else:
+            for partner_obj in partners_list:
+                if isinstance(partner_obj, dict):
+                    updated_partners.append(partner_obj)
+                else:
+                    updated_partners.append({"name": str(partner_obj), "document": None})
+
+        other_doc_instance.partners = updated_partners
+        other_doc_instance.save()
+
+        return other_doc_instance
+
+    def update(self, instance, validated_data):
+        request = self.context.get("request")
+        partners_data = validated_data.pop("partners", None)
+
+        instance.client = validated_data.get("client", instance.client)
+
+        if partners_data is not None:
+            if isinstance(partners_data, dict) and "name" in partners_data:
+                partners_data = [partners_data]
+
+            updated_partners = []
+
+            for i, partner in enumerate(partners_data):
+                file_key = f"partners_{i}_document"
+                uploaded_file = request.FILES.get(file_key) if request else None
+
+                if uploaded_file:
+                    file_path = default_storage.save(f"partners/{uploaded_file.name}", uploaded_file)
+                    partner['document'] = default_storage.url(file_path)
+                else:
+                    # Preserve old document if exists
+                    if i < len(instance.partners):
+                        partner['document'] = instance.partners[i].get('document')
+
+                updated_partners.append(partner)
+
+            instance.partners = updated_partners
+
+        instance.save()
+        return instance
+
+
+
+
